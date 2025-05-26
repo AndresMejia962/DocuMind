@@ -37,3 +37,6 @@ Thumbs.db
 
 # Logs
 *.log 
+
+# Data files
+documentos.csv 
