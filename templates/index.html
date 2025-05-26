@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clasificador de Textos</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .container {
+            max-width: 800px;
+            margin-top: 50px;
+        }
+        .card {
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .card-header {
+            background-color: #007bff;
+            color: white;
+            border-radius: 15px 15px 0 0 !important;
+            padding: 20px;
+        }
+        .form-control {
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .btn-primary {
+            border-radius: 10px;
+            padding: 10px 30px;
+            font-weight: bold;
+        }
+        #resultado {
+            margin-top: 20px;
+            padding: 20px;
+            border-radius: 10px;
+            display: none;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 20px 0;
+        }
+        .confianza {
+            font-size: 0.9em;
+            opacity: 0.8;
+            margin-top: 10px;
+        }
+        .error-message {
+            color: #dc3545;
+            margin-top: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="card-header text-center">
+                <h2>Clasificador de Textos</h2>
+                <p class="mb-0">Ingresa un texto para clasificarlo como Legal o Educativo</p>
+            </div>
+            <div class="card-body">
+                <form id="clasificadorForm">
+                    <div class="form-group">
+                        <textarea class="form-control" id="texto" rows="5" placeholder="Ingresa el texto aquí..."></textarea>
+                    </div>
+                    <div class="text-center">
+                        <button type="submit" class="btn btn-primary">Clasificar</button>
+                    </div>
+                </form>
+                
+                <div class="error-message" id="errorMessage"></div>
+                
+                <div class="loading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Cargando...</span>
+                    </div>
+                </div>
+
+                <div id="resultado" class="alert">
+                    <h4 class="alert-heading">Resultado:</h4>
+                    <p id="categoria" class="mb-0"></p>
+                    <p id="confianza" class="confianza mb-0"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('clasificadorForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const texto = document.getElementById('texto').value;
+            const errorMessage = document.getElementById('errorMessage');
+            
+            if (!texto.trim()) {
+                errorMessage.textContent = 'Por favor, ingresa un texto para clasificar';
+                errorMessage.style.display = 'block';
+                return;
+            }
+
+            // Ocultar mensajes anteriores
+            errorMessage.style.display = 'none';
+            document.getElementById('resultado').style.display = 'none';
+            document.querySelector('.loading').style.display = 'block';
+
+            try {
+                const response = await fetch('/clasificar', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ texto: texto })
+                });
+
+                const data = await response.json();
+                
+                if (data.error) {
+                    errorMessage.textContent = data.error;
+                    errorMessage.style.display = 'block';
+                    return;
+                }
+                
+                // Mostrar resultado
+                const resultado = document.getElementById('resultado');
+                const categoria = document.getElementById('categoria');
+                const confianza = document.getElementById('confianza');
+                
+                resultado.style.display = 'block';
+                resultado.className = 'alert alert-' + (data.categoria === 'Legal' ? 'primary' : 'success');
+                categoria.textContent = `El texto ha sido clasificado como: ${data.categoria}`;
+                confianza.textContent = `Confianza: ${(data.confianza * 100).toFixed(2)}%`;
+            } catch (error) {
+                console.error('Error:', error);
+                errorMessage.textContent = 'Ocurrió un error al clasificar el texto';
+                errorMessage.style.display = 'block';
+            } finally {
+                document.querySelector('.loading').style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html> 
