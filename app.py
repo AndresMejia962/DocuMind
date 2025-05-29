@@ -8,6 +8,8 @@ from sklearn.naive_bayes import MultinomialNB
 import re
 import logging
 from typing import Tuple, Dict, Any
+import pickle
+import os
 
 # Configuración de logging
 logging.basicConfig(level=logging.INFO)
@@ -15,6 +17,8 @@ logger = logging.getLogger(__name__)
 
 # Constantes
 ARCHIVO_DATOS = 'documentos_balanceado_v2.csv'
+ARCHIVO_MODELO = 'modelo_entrenado.pkl'
+ARCHIVO_VECTORIZER = 'vectorizer.pkl'
 CATEGORIAS = ['Legal', 'Educativo']
 
 app = Flask(__name__)
@@ -26,7 +30,7 @@ class ClasificadorTexto:
         self.stop_words = None
         self.lemmatizer = None
         self._inicializar_recursos()
-        self._entrenar_modelo()
+        self._cargar_o_entrenar_modelo()
 
     def _inicializar_recursos(self) -> None:
         """Inicializa los recursos necesarios para el procesamiento de texto."""
@@ -40,6 +44,36 @@ class ClasificadorTexto:
             logger.info("Recursos NLTK inicializados correctamente")
         except Exception as e:
             logger.error(f"Error al inicializar recursos NLTK: {str(e)}")
+            raise
+
+    def _cargar_o_entrenar_modelo(self) -> None:
+        """Carga el modelo guardado o entrena uno nuevo si no existe."""
+        try:
+            if os.path.exists(ARCHIVO_MODELO) and os.path.exists(ARCHIVO_VECTORIZER):
+                logger.info("Cargando modelo existente...")
+                with open(ARCHIVO_MODELO, 'rb') as f:
+                    self.modelo = pickle.load(f)
+                with open(ARCHIVO_VECTORIZER, 'rb') as f:
+                    self.vectorizer = pickle.load(f)
+                logger.info("Modelo cargado correctamente")
+            else:
+                logger.info("No se encontró modelo guardado, entrenando nuevo modelo...")
+                self._entrenar_modelo()
+        except Exception as e:
+            logger.error(f"Error al cargar modelo: {str(e)}")
+            logger.info("Entrenando nuevo modelo...")
+            self._entrenar_modelo()
+
+    def _guardar_modelo(self) -> None:
+        """Guarda el modelo y el vectorizer en archivos."""
+        try:
+            with open(ARCHIVO_MODELO, 'wb') as f:
+                pickle.dump(self.modelo, f)
+            with open(ARCHIVO_VECTORIZER, 'wb') as f:
+                pickle.dump(self.vectorizer, f)
+            logger.info("Modelo guardado correctamente")
+        except Exception as e:
+            logger.error(f"Error al guardar modelo: {str(e)}")
             raise
 
     def _preprocesar_texto(self, texto: str) -> str:
@@ -80,10 +114,46 @@ class ClasificadorTexto:
             # Entrenamiento
             self.modelo = MultinomialNB()
             self.modelo.fit(X, y)
-            logger.info("Modelo entrenado correctamente")
+            
+            # Guardar el modelo entrenado
+            self._guardar_modelo()
+            
+            logger.info("Modelo entrenado y guardado correctamente")
         except Exception as e:
             logger.error(f"Error en entrenamiento del modelo: {str(e)}")
             raise
+
+    def entrenar_con_nuevo_texto(self, texto: str, categoria: str) -> Dict[str, Any]:
+        """Entrena el modelo con un nuevo texto."""
+        try:
+            # Preprocesar el nuevo texto
+            texto_procesado = self._preprocesar_texto(texto)
+            if not texto_procesado:
+                return {'error': 'El texto no pudo ser procesado'}
+
+            # Cargar datos existentes
+            data = pd.read_csv(ARCHIVO_DATOS)
+            
+            # Agregar nuevo texto
+            nuevo_dato = pd.DataFrame({
+                'texto': [texto],
+                'categoria': [categoria]
+            })
+            data = pd.concat([data, nuevo_dato], ignore_index=True)
+            
+            # Guardar datos actualizados
+            data.to_csv(ARCHIVO_DATOS, index=False)
+            
+            # Reentrenar el modelo
+            self._entrenar_modelo()
+            
+            return {
+                'mensaje': 'Modelo actualizado correctamente',
+                'error': None
+            }
+        except Exception as e:
+            logger.error(f"Error en entrenamiento con nuevo texto: {str(e)}")
+            return {'error': 'Error al actualizar el modelo'}
 
     def clasificar(self, texto: str) -> Dict[str, Any]:
         """Clasifica un texto y retorna el resultado."""
@@ -131,6 +201,31 @@ def clasificar():
         return jsonify(resultado)
     except Exception as e:
         logger.error(f"Error en endpoint /clasificar: {str(e)}")
+        return jsonify({'error': 'Error interno del servidor'}), 500
+
+@app.route('/entrenar', methods=['POST'])
+def entrenar():
+    """Endpoint para entrenar el modelo con nuevo texto."""
+    try:
+        if not request.is_json:
+            return jsonify({'error': 'Se requiere formato JSON'}), 400
+
+        texto = request.json.get('texto')
+        categoria = request.json.get('categoria')
+
+        if not texto or not categoria:
+            return jsonify({'error': 'Se requiere texto y categoría'}), 400
+
+        if categoria not in CATEGORIAS:
+            return jsonify({'error': f'Categoría debe ser una de: {", ".join(CATEGORIAS)}'}), 400
+
+        resultado = clasificador.entrenar_con_nuevo_texto(texto, categoria)
+        if resultado.get('error'):
+            return jsonify(resultado), 400
+
+        return jsonify(resultado)
+    except Exception as e:
+        logger.error(f"Error en endpoint /entrenar: {str(e)}")
         return jsonify({'error': 'Error interno del servidor'}), 500
 
 if __name__ == '__main__':

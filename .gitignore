@@ -39,4 +39,8 @@ Thumbs.db
 *.log 
 
 # Data files
-documentos.csv 
+documentos.csv
+
+# Model files
+modelo_entrenado.pkl
+vectorizer.pkl 
