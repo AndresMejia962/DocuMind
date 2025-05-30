@@ -66,7 +66,7 @@ DocuMind/
 - NLTK: Procesamiento de Lenguaje Natural.
 - spaCy: Procesamiento de Lenguaje Natural.
 - Bootstrap: Interfaz de usuario.
-- JavaScript: Interactividad del frontend.
+.
 
 ## Contribuir
 1. Fork el proyecto.
